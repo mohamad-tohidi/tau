@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tau_agent import AssistantMessage, UserMessage
+from tau_agent import AssistantMessage, ToolResultMessage, UserMessage
 from tau_agent.session import (
     CompactionEntry,
     CustomEntry,
@@ -22,6 +22,25 @@ from tau_agent.session import (
 
 def test_session_entry_round_trips_jsonl() -> None:
     entry = MessageEntry(id="entry-1", message=UserMessage(content="Hello"))
+
+    line = entry_to_json_line(entry)
+    parsed = entry_from_json_line(line)
+
+    assert parsed == entry
+
+
+def test_tool_result_message_metadata_round_trips_jsonl() -> None:
+    entry = MessageEntry(
+        id="entry-1",
+        message=ToolResultMessage(
+            tool_call_id="call-1",
+            name="edit",
+            content="Successfully replaced 1 block.",
+            ok=True,
+            data={"patch": "--- a.py\n+++ a.py\n@@\n-old\n+new"},
+            details={"first_changed_line": 12},
+        ),
+    )
 
     line = entry_to_json_line(entry)
     parsed = entry_from_json_line(line)

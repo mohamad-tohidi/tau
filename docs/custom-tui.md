@@ -73,6 +73,9 @@ The built-in Textual frontend uses `TuiState.load_messages()` as a reference
 implementation. A custom frontend can use that class directly or implement its
 own display state. Either way, restored messages should produce the same user,
 assistant, tool-call, and tool-result blocks that live events produce.
+`ToolResultMessage` preserves structured metadata such as edit patches, so a
+custom frontend can render restored tool-result details without reading JSONL
+session files directly.
 
 ## Handling Slash Commands
 
@@ -202,6 +205,7 @@ A custom TUI should prove these behaviors before it is considered compatible:
 
 - `tau_agent` has no dependency on the frontend framework.
 - Opening a session restores prior user, assistant, and tool blocks.
+- Restored tool results use persisted metadata for details such as edit patches.
 - Prompt submission streams assistant deltas and tool events live.
 - Slash commands run through `session.handle_command()`.
 - `/skill:<name>` prompts pass through to `session.prompt()`.

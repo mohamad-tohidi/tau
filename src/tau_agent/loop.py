@@ -178,4 +178,7 @@ def _tool_result_message(result: AgentToolResult) -> ToolResultMessage:
         name=result.name,
         content=content,
         ok=result.ok,
+        data=result.data,
+        details=result.details,
+        error=result.error,
     )

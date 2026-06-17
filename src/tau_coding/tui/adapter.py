@@ -4,7 +4,6 @@ from tau_agent import (
     AgentEndEvent,
     AgentEvent,
     AgentStartEvent,
-    AgentToolResult,
     ErrorEvent,
     MessageDeltaEvent,
     MessageEndEvent,
@@ -13,7 +12,7 @@ from tau_agent import (
     ToolExecutionStartEvent,
     ToolExecutionUpdateEvent,
 )
-from tau_coding.tui.state import TuiState
+from tau_coding.tui.state import TuiState, format_tool_result_block
 
 
 class TuiEventAdapter:
@@ -62,7 +61,15 @@ class TuiEventAdapter:
             return
 
         if isinstance(event, ToolExecutionEndEvent):
-            self.state.add_item("tool", _tool_result_text(event.result))
+            self.state.add_item(
+                "tool",
+                format_tool_result_block(
+                    name=event.result.name,
+                    ok=event.result.ok,
+                    content=event.result.content,
+                    data=event.result.data,
+                ),
+            )
             return
 
         if isinstance(event, ErrorEvent):
@@ -76,21 +83,3 @@ class TuiEventAdapter:
         if self.state.assistant_buffer:
             self.state.add_item("assistant", self.state.assistant_buffer)
             self.state.assistant_buffer = ""
-
-
-def _tool_result_text(result: AgentToolResult) -> str:
-    status = "✓" if result.ok else "✗"
-    lines = [f"{status} {result.name}"]
-    if result.content:
-        lines.append(result.content)
-    patch = _result_patch(result)
-    if patch:
-        lines.extend(["", "Patch:", patch])
-    return "\n".join(lines)
-
-
-def _result_patch(result: AgentToolResult) -> str | None:
-    if result.name != "edit" or not result.ok or result.data is None:
-        return None
-    patch = result.data.get("patch")
-    return patch if isinstance(patch, str) and patch.strip() else None

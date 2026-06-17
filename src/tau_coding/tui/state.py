@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from tau_agent.messages import AgentMessage
+from tau_agent.types import JSONValue
 
 ChatItemRole = Literal["user", "assistant", "tool", "error", "status"]
 
@@ -47,8 +48,42 @@ class TuiState:
                 for tool_call in message.tool_calls:
                     self.add_item("tool", f"→ {tool_call.name} {tool_call.arguments}")
             elif message.role == "tool":
-                status = "✓" if message.ok else "✗"
-                text = f"{status} {message.name}"
-                if message.content:
-                    text = f"{text}\n{message.content}"
-                self.add_item("tool", text)
+                self.add_item(
+                    "tool",
+                    format_tool_result_block(
+                        name=message.name,
+                        ok=message.ok,
+                        content=message.content,
+                        data=message.data,
+                    ),
+                )
+
+
+def format_tool_result_block(
+    *,
+    name: str,
+    ok: bool,
+    content: str,
+    data: dict[str, JSONValue] | None = None,
+) -> str:
+    """Format a tool result for live and restored transcript blocks."""
+    status = "✓" if ok else "✗"
+    lines = [f"{status} {name}"]
+    if content:
+        lines.append(content)
+    patch = _result_patch(name=name, ok=ok, data=data)
+    if patch:
+        lines.extend(["", "Patch:", patch])
+    return "\n".join(lines)
+
+
+def _result_patch(
+    *,
+    name: str,
+    ok: bool,
+    data: dict[str, JSONValue] | None,
+) -> str | None:
+    if name != "edit" or not ok or data is None:
+        return None
+    patch = data.get("patch")
+    return patch if isinstance(patch, str) and patch.strip() else None

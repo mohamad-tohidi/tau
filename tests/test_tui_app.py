@@ -130,14 +130,15 @@ def test_tui_app_loads_restored_messages_into_display_state() -> None:
                 AssistantMessage(
                     content="I'll inspect it.",
                     tool_calls=[
-                        ToolCall(id="call-1", name="read", arguments={"path": "README.md"})
+                        ToolCall(id="call-1", name="edit", arguments={"path": "README.md"})
                     ],
                 ),
                 ToolResultMessage(
                     tool_call_id="call-1",
-                    name="read",
-                    content="README contents",
+                    name="edit",
+                    content="Successfully replaced 1 block.",
                     ok=True,
+                    data={"patch": "--- README.md\n+++ README.md\n@@\n-old\n+new"},
                 ),
             ]
         )
@@ -146,8 +147,19 @@ def test_tui_app_loads_restored_messages_into_display_state() -> None:
     assert [(item.role, item.text) for item in app.state.items] == [
         ("user", "Read the file"),
         ("assistant", "I'll inspect it."),
-        ("tool", "→ read {'path': 'README.md'}"),
-        ("tool", "✓ read\nREADME contents"),
+        ("tool", "→ edit {'path': 'README.md'}"),
+        (
+            "tool",
+            "✓ edit\n"
+            "Successfully replaced 1 block.\n"
+            "\n"
+            "Patch:\n"
+            "--- README.md\n"
+            "+++ README.md\n"
+            "@@\n"
+            "-old\n"
+            "+new",
+        ),
     ]
 
 

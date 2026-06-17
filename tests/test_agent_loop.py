@@ -74,6 +74,8 @@ async def test_agent_loop_executes_tools_and_continues_until_no_tool_calls() -> 
             name="read",
             ok=True,
             content=f"contents of {arguments['path']}",
+            data={"path": arguments["path"]},
+            details={"source": "fake"},
         )
 
     tool = AgentTool(
@@ -133,6 +135,8 @@ async def test_agent_loop_executes_tools_and_continues_until_no_tool_calls() -> 
             name="read",
             content="contents of README.md",
             ok=True,
+            data={"path": "README.md"},
+            details={"source": "fake"},
         ),
         final_assistant,
     ]
@@ -174,6 +178,7 @@ async def test_agent_loop_records_unknown_tool_as_failed_tool_result() -> None:
         name="missing",
         content="Unknown tool: missing",
         ok=False,
+        error="Unknown tool: missing",
     )
 
 

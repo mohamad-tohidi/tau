@@ -40,10 +40,15 @@ def test_tool_result_message_records_tool_output() -> None:
         name="read",
         content="file contents",
         ok=True,
+        data={"path": "README.md"},
+        details={"bytes": 13},
+        error=None,
     )
 
     assert message.role == "tool"
     assert message.tool_call_id == "call-1"
+    assert message.data == {"path": "README.md"}
+    assert message.details == {"bytes": 13}
 
 
 def test_models_reject_unknown_fields() -> None:

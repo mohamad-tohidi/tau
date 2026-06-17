@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from tau_agent.tools import ToolCall
+from tau_agent.types import JSONValue
 
 
 class UserMessage(BaseModel):
@@ -36,6 +37,9 @@ class ToolResultMessage(BaseModel):
     name: str
     content: str
     ok: bool = True
+    data: dict[str, JSONValue] | None = None
+    details: dict[str, JSONValue] | None = None
+    error: str | None = None
 
 
 type AgentMessage = UserMessage | AssistantMessage | ToolResultMessage
