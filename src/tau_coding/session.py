@@ -20,6 +20,7 @@ from tau_ai import ModelProvider
 from tau_coding.paths import TauPaths
 from tau_coding.prompt_templates import PromptTemplate, load_prompt_templates
 from tau_coding.resources import ResourceError, TauResourcePaths
+from tau_coding.session_manager import SessionManager
 from tau_coding.skills import Skill, expand_skill_command, load_skills
 from tau_coding.system_prompt import (
     BuildSystemPromptOptions,
@@ -43,6 +44,8 @@ class CodingSessionConfig:
     context_files: tuple[ProjectContextFile, ...] = ()
     tools: list[AgentTool] | None = None
     resource_paths: TauResourcePaths | None = None
+    session_id: str | None = None
+    session_manager: SessionManager | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +237,8 @@ class CodingSession:
 
         entries = await self._config.storage.read_all()
         self._state = SessionState.from_entries(entries)
+        if self._config.session_id is not None and self._config.session_manager is not None:
+            self._config.session_manager.touch_session(self._config.session_id, model=self.model)
 
 
 def _last_parent_id_from_state(state: SessionState) -> str | None:

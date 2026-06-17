@@ -33,5 +33,6 @@ The most important boundary is that `tau_agent` should stay portable. It can def
 - [Phase 11: Print and Event Rendering Modes](phase-11-print-event-rendering.md)
 - [Phase 12: Textual TUI](phase-12-textual-tui.md)
 - [Phase 13: Tau Home, Paths, and `.agents` Resources](phase-13-paths-agents-resources.md)
+- [Phase 14: Session Manager and Resume](phase-14-session-manager-resume.md)
 
 More pages will be added here as each phase lands.

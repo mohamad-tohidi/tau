@@ -11,7 +11,13 @@ from tau_agent.session import (
     SessionInfoEntry,
 )
 from tau_ai import FakeProvider, ProviderResponseEndEvent, ProviderResponseStartEvent
-from tau_coding import CodingSession, CodingSessionConfig, TauResourcePaths
+from tau_coding import (
+    CodingSession,
+    CodingSessionConfig,
+    SessionManager,
+    TauPaths,
+    TauResourcePaths,
+)
 
 
 async def _collect_session_events(session_stream: object) -> list[object]:
@@ -231,6 +237,38 @@ async def test_session_builds_system_prompt_when_system_is_omitted(tmp_path: Pat
     assert "Available tools:\n- read: Read file contents" in provider.calls[0][1]
     assert "<available_skills>" in provider.calls[0][1]
     assert "<name>testing</name>" in provider.calls[0][1]
+
+
+@pytest.mark.anyio
+async def test_session_touches_session_manager_after_persisting_messages(tmp_path: Path) -> None:
+    storage = JsonlSessionStorage(tmp_path / "session.jsonl")
+    manager = SessionManager(TauPaths(home=tmp_path / ".tau", agents_home=tmp_path / ".agents"))
+    record = manager.create_session(cwd=tmp_path, model="fake")
+    provider = FakeProvider(
+        [
+            [
+                ProviderResponseStartEvent(model="fake"),
+                ProviderResponseEndEvent(message=AssistantMessage(content="Done")),
+            ]
+        ]
+    )
+    config = CodingSessionConfig(
+        provider=provider,
+        model="fake",
+        system="You are Tau.",
+        storage=storage,
+        cwd=tmp_path,
+        session_id=record.id,
+        session_manager=manager,
+        resource_paths=TauResourcePaths(root=tmp_path / "resources", agents_root=None),
+    )
+    session = await CodingSession.load(config)
+
+    _events = await _collect_session_events(session.prompt("Hello"))
+
+    updated = manager.get_session(record.id)
+    assert updated is not None
+    assert updated.updated_at >= record.updated_at
 
 
 @pytest.mark.anyio

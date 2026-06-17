@@ -22,6 +22,7 @@ from tau_coding.session import (
     default_session_path,
     jsonl_session_storage,
 )
+from tau_coding.session_manager import CodingSessionRecord, SessionManager
 from tau_coding.skills import Skill, build_skill_index, expand_skill_command, load_skills
 from tau_coding.system_prompt import (
     BuildSystemPromptOptions,
@@ -52,6 +53,7 @@ __all__ = [
     "__version__",
     "CodingSession",
     "CodingSessionConfig",
+    "CodingSessionRecord",
     "CommandResult",
     "BuildSystemPromptOptions",
     "EventRenderer",
@@ -61,6 +63,7 @@ __all__ = [
     "ProjectContextFile",
     "PromptTemplate",
     "ResourceError",
+    "SessionManager",
     "Skill",
     "TauPaths",
     "TauResourcePaths",

@@ -1,0 +1,183 @@
+"""User-home session management for Tau coding sessions."""
+
+from dataclasses import dataclass
+from pathlib import Path
+from time import time
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict
+
+from tau_coding.paths import TauPaths
+
+
+class SessionRecordModel(BaseModel):
+    """JSON-serializable coding-session metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    path: str
+    cwd: str
+    model: str
+    title: str | None = None
+    created_at: float
+    updated_at: float
+
+
+@dataclass(frozen=True, slots=True)
+class CodingSessionRecord:
+    """Metadata for one durable coding session."""
+
+    id: str
+    path: Path
+    cwd: Path
+    model: str
+    title: str | None
+    created_at: float
+    updated_at: float
+
+    @classmethod
+    def from_model(cls, model: SessionRecordModel) -> CodingSessionRecord:
+        """Convert a JSON model to a record."""
+        return cls(
+            id=model.id,
+            path=Path(model.path),
+            cwd=Path(model.cwd),
+            model=model.model,
+            title=model.title,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+        )
+
+    def to_model(self) -> SessionRecordModel:
+        """Convert this record to a JSON model."""
+        return SessionRecordModel(
+            id=self.id,
+            path=str(self.path),
+            cwd=str(self.cwd),
+            model=self.model,
+            title=self.title,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
+
+class SessionManager:
+    """Create, index, list, and resume user-home coding sessions."""
+
+    def __init__(self, paths: TauPaths | None = None) -> None:
+        self.paths = paths or TauPaths()
+
+    @property
+    def index_path(self) -> Path:
+        """Return the session metadata index path."""
+        return self.paths.sessions_dir / "index.jsonl"
+
+    def list_sessions(self) -> list[CodingSessionRecord]:
+        """Return all indexed sessions, newest updated first."""
+        records = self._read_index()
+        return sorted(records, key=lambda record: record.updated_at, reverse=True)
+
+    def get_session(self, session_id: str) -> CodingSessionRecord | None:
+        """Return a session record by id, if present."""
+        for record in self._read_index():
+            if record.id == session_id:
+                return record
+        return None
+
+    def create_session(
+        self,
+        *,
+        cwd: Path,
+        model: str,
+        title: str | None = None,
+        session_id: str | None = None,
+    ) -> CodingSessionRecord:
+        """Create and index a new session record."""
+        now = time()
+        resolved_cwd = cwd.resolve()
+        record_id = session_id or uuid4().hex
+        path = self.paths.project_session_dir(resolved_cwd) / f"{record_id}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        record = CodingSessionRecord(
+            id=record_id,
+            path=path,
+            cwd=resolved_cwd,
+            model=model,
+            title=title,
+            created_at=now,
+            updated_at=now,
+        )
+        self._upsert(record)
+        return record
+
+    def get_or_create_default_session(self, *, cwd: Path, model: str) -> CodingSessionRecord:
+        """Return the default project session, creating an index record when needed."""
+        resolved_cwd = cwd.resolve()
+        project_hash = self.paths.project_session_dir(resolved_cwd).name
+        session_id = f"default-{project_hash}"
+        existing = self.get_session(session_id)
+        if existing is not None:
+            return existing
+
+        now = time()
+        path = self.paths.default_session_path(resolved_cwd)
+        record = CodingSessionRecord(
+            id=session_id,
+            path=path,
+            cwd=resolved_cwd,
+            model=model,
+            title="Default session",
+            created_at=now,
+            updated_at=now,
+        )
+        self._upsert(record)
+        return record
+
+    def touch_session(
+        self,
+        session_id: str,
+        *,
+        model: str | None = None,
+        title: str | None = None,
+    ) -> CodingSessionRecord | None:
+        """Update a session's last-used metadata."""
+        existing = self.get_session(session_id)
+        if existing is None:
+            return None
+        updated = CodingSessionRecord(
+            id=existing.id,
+            path=existing.path,
+            cwd=existing.cwd,
+            model=model or existing.model,
+            title=title if title is not None else existing.title,
+            created_at=existing.created_at,
+            updated_at=time(),
+        )
+        self._upsert(updated)
+        return updated
+
+    def _read_index(self) -> list[CodingSessionRecord]:
+        if not self.index_path.exists():
+            return []
+
+        records: list[CodingSessionRecord] = []
+        for line in self.index_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            model = SessionRecordModel.model_validate_json(stripped)
+            records.append(CodingSessionRecord.from_model(model))
+        return records
+
+    def _write_index(self, records: list[CodingSessionRecord]) -> None:
+        self.index_path.parent.mkdir(parents=True, exist_ok=True)
+        content = "\n".join(record.to_model().model_dump_json() for record in records)
+        if content:
+            content += "\n"
+        self.index_path.write_text(content, encoding="utf-8")
+
+    def _upsert(self, record: CodingSessionRecord) -> None:
+        records = [item for item in self._read_index() if item.id != record.id]
+        records.append(record)
+        self._write_index(records)

@@ -72,5 +72,6 @@ nav:
       - "Phase 11: Print and Event Rendering Modes": architecture/phase-11-print-event-rendering.md
       - "Phase 12: Textual TUI": architecture/phase-12-textual-tui.md
       - "Phase 13: Tau Home, Paths, and .agents Resources": architecture/phase-13-paths-agents-resources.md
+      - "Phase 14: Session Manager and Resume": architecture/phase-14-session-manager-resume.md
   - ADRs:
       - Use Textual for TUI: adr/0001-use-textual-for-tui.md
