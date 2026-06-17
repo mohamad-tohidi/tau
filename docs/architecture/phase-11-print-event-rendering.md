@@ -90,7 +90,9 @@ It creates a renderer with:
 create_event_renderer(output)
 ```
 
-and sends every event from `AgentHarness.prompt()` to the renderer.
+and sends every event from `CodingSession.prompt()` to the renderer. The session
+wrapper persists the one-shot transcript and keeps print mode aligned with the
+same prompt, resource, and tool environment used by the TUI.
 
 ## Tests
 

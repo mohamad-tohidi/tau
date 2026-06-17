@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from tau_agent import AssistantMessage
+from tau_agent.session import JsonlSessionStorage, MessageEntry
 from tau_ai import (
     FakeProvider,
     ProviderErrorEvent,
@@ -135,6 +136,71 @@ async def test_run_print_mode_includes_discovered_context(
     assert ok is True
     assert "Use the local rules." in provider.calls[0][1]
     assert f'<project_instructions path="{tmp_path / "AGENTS.md"}">' in provider.calls[0][1]
+
+
+@pytest.mark.anyio
+async def test_run_print_mode_persists_session_entries(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    storage = JsonlSessionStorage(tmp_path / "print-session.jsonl")
+    provider = FakeProvider(
+        [
+            [
+                ProviderResponseStartEvent(model="fake"),
+                ProviderResponseEndEvent(message=AssistantMessage(content="Done")),
+            ]
+        ]
+    )
+
+    ok = await run_print_mode(
+        prompt="Say hello",
+        model="fake",
+        cwd=tmp_path,
+        provider=provider,
+        storage=storage,
+    )
+
+    _captured = capsys.readouterr()
+    entries = await storage.read_all()
+    messages = [entry.message for entry in entries if isinstance(entry, MessageEntry)]
+
+    assert ok is True
+    assert [message.role for message in messages] == ["user", "assistant"]
+    assert messages[0].content == "Say hello"
+    assert messages[1].content == "Done"
+    assert any(entry.type == "leaf" for entry in entries)
+
+
+@pytest.mark.anyio
+async def test_run_print_mode_expands_skill_commands(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    resource_root = tmp_path / "resources"
+    skills_dir = resource_root / "skills"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "testing.md").write_text("# Testing\nRun pytest.", encoding="utf-8")
+    provider = FakeProvider(
+        [
+            [
+                ProviderResponseStartEvent(model="fake"),
+                ProviderResponseEndEvent(message=AssistantMessage(content="Done")),
+            ]
+        ]
+    )
+
+    ok = await run_print_mode(
+        prompt="/skill:testing add tests",
+        model="fake",
+        cwd=tmp_path,
+        provider=provider,
+        resource_paths=TauResourcePaths(root=resource_root, agents_root=None),
+    )
+
+    _captured = capsys.readouterr()
+
+    assert ok is True
+    assert '<skill name="testing">' in provider.calls[0][2][0].content
+    assert "User request:\nadd tests" in provider.calls[0][2][0].content
 
 
 @pytest.mark.anyio

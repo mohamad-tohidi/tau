@@ -42,6 +42,9 @@ For a one-shot print-mode prompt:
 tau "explain this repository"
 ```
 
+Print-mode prompts create indexed session entries under `~/.tau/sessions/` while
+keeping stdout/stderr script-friendly.
+
 Tau needs an OpenAI-compatible provider. The default provider reads:
 
 ```bash

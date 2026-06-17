@@ -7,15 +7,14 @@ from typing import Annotated
 import anyio
 import typer
 
-from tau_agent import AgentHarness, AgentHarnessConfig
+from tau_agent.session import SessionEntry, SessionStorage
 from tau_ai import (
     DEFAULT_OPENAI_COMPATIBLE_TIMEOUT_SECONDS,
     ModelProvider,
     OpenAICompatibleProvider,
 )
 from tau_ai.env import DEFAULT_OPENAI_COMPATIBLE_BASE_URL
-from tau_coding import __version__, create_coding_tools, load_skills_with_diagnostics
-from tau_coding.context import discover_project_context
+from tau_coding import __version__
 from tau_coding.provider_config import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER_NAME,
@@ -28,9 +27,9 @@ from tau_coding.provider_config import (
     upsert_openai_compatible_provider,
 )
 from tau_coding.rendering import PrintOutputMode, create_event_renderer
-from tau_coding.resources import TauResourcePaths, resource_paths_with_cwd
+from tau_coding.resources import TauResourcePaths
+from tau_coding.session import CodingSession, CodingSessionConfig, jsonl_session_storage
 from tau_coding.session_manager import CodingSessionRecord, SessionManager
-from tau_coding.system_prompt import BuildSystemPromptOptions, build_system_prompt
 from tau_coding.tui import run_tui_app
 
 app = typer.Typer(
@@ -240,14 +239,26 @@ async def run_openai_print_mode(
     cwd: Path,
     output: PrintOutputMode = PrintOutputMode.text,
     provider_name: str | None = None,
+    session_manager: SessionManager | None = None,
 ) -> bool:
     """Run print mode with the OpenAI-compatible provider configured from the environment."""
     settings = load_provider_settings()
     selection = resolve_provider_selection(settings, provider_name=provider_name, model=model)
     provider = OpenAICompatibleProvider(openai_compatible_config_from_provider(selection.provider))
+    manager = session_manager or SessionManager()
+    record = manager.create_session(cwd=cwd, model=selection.model)
     try:
         return await run_print_mode(
-            prompt=prompt, model=selection.model, cwd=cwd, provider=provider, output=output
+            prompt=prompt,
+            model=selection.model,
+            cwd=record.cwd,
+            provider=provider,
+            output=output,
+            storage=jsonl_session_storage(record.path),
+            session_id=record.id,
+            session_manager=manager,
+            provider_name=selection.provider.name,
+            provider_settings=settings,
         )
     finally:
         await provider.aclose()
@@ -261,33 +272,47 @@ async def run_print_mode(
     provider: ModelProvider,
     output: PrintOutputMode = PrintOutputMode.text,
     resource_paths: TauResourcePaths | None = None,
+    storage: SessionStorage | None = None,
+    session_id: str | None = None,
+    session_manager: SessionManager | None = None,
+    provider_name: str = DEFAULT_PROVIDER_NAME,
+    provider_settings: ProviderSettings | None = None,
 ) -> bool:
     """Run one non-interactive prompt and print streamed events.
 
     Returns False when the agent emits a non-recoverable error so CLI callers
     can fail non-interactive runs while still rendering the error message.
     """
-    tools = create_coding_tools(cwd=cwd)
-    active_resource_paths = resource_paths_with_cwd(resource_paths, cwd)
-    skills, _diagnostics = load_skills_with_diagnostics(active_resource_paths)
-    context_files = discover_project_context(active_resource_paths)
-    system = build_system_prompt(
-        BuildSystemPromptOptions(
-            cwd=cwd,
-            tools=tools,
-            skills=skills,
-            context_files=context_files,
-        )
-    )
-    harness = AgentHarness(
-        AgentHarnessConfig(
+    session = await CodingSession.load(
+        CodingSessionConfig(
             provider=provider,
             model=model,
-            system=system,
-            tools=tools,
+            cwd=cwd,
+            storage=storage or _MemorySessionStorage(),
+            resource_paths=resource_paths,
+            session_id=session_id,
+            session_manager=session_manager,
+            provider_name=provider_name,
+            provider_settings=provider_settings,
         )
     )
     renderer = create_event_renderer(output)
-    async for event in harness.prompt(prompt):
-        renderer.render(event)
-    return renderer.finish()
+    try:
+        async for event in session.prompt(prompt):
+            renderer.render(event)
+        return renderer.finish()
+    finally:
+        await session.aclose()
+
+
+class _MemorySessionStorage:
+    """Append-only in-memory storage for direct print-mode tests."""
+
+    def __init__(self) -> None:
+        self.entries: list[SessionEntry] = []
+
+    async def append(self, entry: SessionEntry) -> None:
+        self.entries.append(entry)
+
+    async def read_all(self) -> list[SessionEntry]:
+        return list(self.entries)

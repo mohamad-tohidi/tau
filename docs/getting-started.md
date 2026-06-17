@@ -86,6 +86,10 @@ Tau stores indexed sessions under `~/.tau/sessions/`.
 uv run tau "explain this repository"
 ```
 
+One-shot print-mode prompts are non-interactive, but they still use the shared
+coding-session environment. Tau stores their session entries under
+`~/.tau/sessions/`.
+
 ## Run tests and checks
 
 ```bash
