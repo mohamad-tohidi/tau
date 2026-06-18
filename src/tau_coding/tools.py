@@ -158,7 +158,7 @@ def create_read_tool_definition(*, cwd: str | Path | None = None) -> ToolDefinit
 
         text = path.read_text(encoding="utf-8")
         all_lines = text.split("\n")
-        start_line = 0 if offset in (None, 0) else offset - 1
+        start_line = 0 if offset is None or offset == 0 else offset - 1
         if start_line >= len(all_lines):
             raise ToolInputError(
                 f"Offset {offset} is beyond end of file ({len(all_lines)} lines total)"
