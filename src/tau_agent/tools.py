@@ -1,8 +1,9 @@
 """Provider-neutral tool definitions and tool execution results."""
 
-from collections.abc import Awaitable, Callable, Mapping
+from __future__ import annotations
+
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
-from inspect import signature
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +19,16 @@ class ToolCancellationToken(Protocol):
         ...
 
 
-ToolExecutor = Callable[..., Awaitable["AgentToolResult"]]
+class ToolExecutor(Protocol):
+    """Async callable used to execute a tool."""
+
+    def __call__(
+        self,
+        arguments: Mapping[str, JSONValue],
+        signal: ToolCancellationToken | None = None,
+    ) -> Awaitable[AgentToolResult]:
+        """Execute the tool with optional cancellation support."""
+        ...
 
 
 class ToolCall(BaseModel):
@@ -62,14 +72,4 @@ class AgentTool:
         signal: ToolCancellationToken | None = None,
     ) -> AgentToolResult:
         """Execute the tool with provider-neutral JSON-like arguments."""
-        if _accepts_signal(self.executor):
-            return await self.executor(arguments, signal)
-        return await self.executor(arguments)
-
-
-def _accepts_signal(executor: ToolExecutor) -> bool:
-    try:
-        parameters = signature(executor).parameters
-    except (TypeError, ValueError):
-        return False
-    return len(parameters) >= 2
+        return await self.executor(arguments, signal=signal)

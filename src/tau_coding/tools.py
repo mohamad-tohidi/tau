@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import monotonic
 
-from tau_agent.tools import AgentTool, AgentToolResult, ToolCancellationToken
+from tau_agent.tools import AgentTool, AgentToolResult, ToolCancellationToken, ToolExecutor
 from tau_agent.types import JSONValue
 
 DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024
@@ -74,14 +74,14 @@ class ToolDefinition:
     prompt_snippet: str
     prompt_guidelines: tuple[str, ...]
     input_schema: Mapping[str, JSONValue]
-    executor: object
+    executor: ToolExecutor
 
     def to_agent_tool(self) -> AgentTool:
         return AgentTool(
             name=self.name,
             description=self.description,
             input_schema=self.input_schema,
-            executor=self.executor,  # type: ignore[arg-type]
+            executor=self.executor,
             prompt_snippet=self.prompt_snippet,
             prompt_guidelines=self.prompt_guidelines,
         )
@@ -125,7 +125,11 @@ def create_read_tool_definition(*, cwd: str | Path | None = None) -> ToolDefinit
     """
     root = Path.cwd() if cwd is None else Path(cwd)
 
-    async def execute(arguments: Mapping[str, JSONValue]) -> AgentToolResult:
+    async def execute(
+        arguments: Mapping[str, JSONValue],
+        signal: ToolCancellationToken | None = None,
+    ) -> AgentToolResult:
+        del signal
         raw_path = _str_arg(arguments, "path")
         path = _path_arg(arguments, "path", cwd=root)
         offset = _optional_int_arg(arguments, "offset")
@@ -260,7 +264,11 @@ def create_write_tool_definition(*, cwd: str | Path | None = None) -> ToolDefini
     """
     root = Path.cwd() if cwd is None else Path(cwd)
 
-    async def execute(arguments: Mapping[str, JSONValue]) -> AgentToolResult:
+    async def execute(
+        arguments: Mapping[str, JSONValue],
+        signal: ToolCancellationToken | None = None,
+    ) -> AgentToolResult:
+        del signal
         path = _path_arg(arguments, "path", cwd=root)
         content = _str_arg(arguments, "content")
 
@@ -321,7 +329,11 @@ def create_edit_tool_definition(*, cwd: str | Path | None = None) -> ToolDefinit
     """
     root = Path.cwd() if cwd is None else Path(cwd)
 
-    async def execute(arguments: Mapping[str, JSONValue]) -> AgentToolResult:
+    async def execute(
+        arguments: Mapping[str, JSONValue],
+        signal: ToolCancellationToken | None = None,
+    ) -> AgentToolResult:
+        del signal
         prepared = _prepare_edit_arguments(arguments)
         path = _path_arg(prepared, "path", cwd=root)
         edits = _edits_arg(prepared)

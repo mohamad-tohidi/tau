@@ -117,7 +117,11 @@ async def test_agent_loop_streams_thinking_deltas_without_recording_them() -> No
 
 @pytest.mark.anyio
 async def test_agent_loop_executes_tools_and_continues_until_no_tool_calls() -> None:
-    async def executor(arguments: Mapping[str, JSONValue]) -> AgentToolResult:
+    async def executor(
+        arguments: Mapping[str, JSONValue],
+        signal: object | None = None,
+    ) -> AgentToolResult:
+        del signal
         return AgentToolResult(
             tool_call_id="call-1",
             name="read",
@@ -299,7 +303,11 @@ async def test_agent_loop_records_cancelled_results_for_skipped_tool_calls() -> 
 
 @pytest.mark.anyio
 async def test_agent_loop_injects_steering_after_tool_batch() -> None:
-    async def executor(arguments: Mapping[str, JSONValue]) -> AgentToolResult:
+    async def executor(
+        arguments: Mapping[str, JSONValue],
+        signal: object | None = None,
+    ) -> AgentToolResult:
+        del signal
         return AgentToolResult(
             tool_call_id="call-1",
             name="read",
