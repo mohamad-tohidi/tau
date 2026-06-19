@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
+from datetime import datetime
 from inspect import isawaitable
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol, cast
@@ -136,6 +137,7 @@ class SessionCompletionRecord(Protocol):
     title: str | None
     model: str
     cwd: Path
+    updated_at: float
 
 
 class PromptInput(TextArea):
@@ -317,6 +319,9 @@ class SessionPickerScreen(ModalScreen[str | None]):
 
     BINDINGS: ClassVar[list[BindingEntry]] = [
         Binding("escape", "cancel", "Cancel"),
+        Binding("up", "cursor_up", "Up", show=False),
+        Binding("down", "cursor_down", "Down", show=False),
+        Binding("enter", "select_cursor", "Select", show=False),
     ]
 
     def __init__(
@@ -340,11 +345,41 @@ class SessionPickerScreen(ModalScreen[str | None]):
                 ],
                 id="session-picker-list",
             )
-            yield Static("Enter resumes - Escape closes", id="session-picker-help")
+            yield Static("Enter selects - Escape closes", id="session-picker-help")
+
+    def on_mount(self) -> None:
+        """Focus the session list for keyboard navigation."""
+        session_list = self.query_one("#session-picker-list", ListView)
+        session_list.index = 0
+        session_list.focus()
+
+    def on_key(self, event: Key) -> None:
+        """Route session picker keys to the list."""
+        if event.key == "up":
+            event.stop()
+            self.action_cursor_up()
+        elif event.key == "down":
+            event.stop()
+            self.action_cursor_down()
+        elif event.key == "enter":
+            event.stop()
+            self.action_select_cursor()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Dismiss with the selected session id."""
         self.dismiss(self.records[event.index].id)
+
+    def action_cursor_up(self) -> None:
+        """Move to the previous session."""
+        self.query_one("#session-picker-list", ListView).action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move to the next session."""
+        self.query_one("#session-picker-list", ListView).action_cursor_down()
+
+    def action_select_cursor(self) -> None:
+        """Select the highlighted session."""
+        self.query_one("#session-picker-list", ListView).action_select_cursor()
 
     def action_cancel(self) -> None:
         """Close the picker without selecting a session."""
@@ -1227,7 +1262,10 @@ class TauTuiApp(App[None]):
 
     def action_accept_completion(self) -> None:
         """Accept the currently selected prompt completion."""
-        if isinstance(self.screen, LoginProviderPickerScreen | ModelPickerScreen):
+        if isinstance(
+            self.screen,
+            SessionPickerScreen | LoginProviderPickerScreen | ModelPickerScreen,
+        ):
             self.screen.action_select_cursor()
             return
         prompt = self.query_one("#prompt", PromptInput)
@@ -1241,7 +1279,10 @@ class TauTuiApp(App[None]):
 
     def action_completion_next(self) -> None:
         """Select the next prompt completion or move down in the prompt."""
-        if isinstance(self.screen, LoginProviderPickerScreen | ModelPickerScreen):
+        if isinstance(
+            self.screen,
+            SessionPickerScreen | LoginProviderPickerScreen | ModelPickerScreen,
+        ):
             self.screen.action_cursor_down()
             return
         if not self._completion_state.items:
@@ -1252,7 +1293,10 @@ class TauTuiApp(App[None]):
 
     def action_completion_previous(self) -> None:
         """Select the previous prompt completion or move up in the prompt."""
-        if isinstance(self.screen, LoginProviderPickerScreen | ModelPickerScreen):
+        if isinstance(
+            self.screen,
+            SessionPickerScreen | LoginProviderPickerScreen | ModelPickerScreen,
+        ):
             self.screen.action_cursor_up()
             return
         if not self._completion_state.items:
@@ -1661,7 +1705,26 @@ def _short_path(path: Path) -> str:
 
 
 def _session_picker_label(record: SessionCompletionRecord) -> str:
-    return f"{record.id}\n  {_session_option(record).description}"
+    parts = [_session_updated_at_label(record.updated_at)]
+    if record.model:
+        parts.append(record.model)
+    title = _named_session_title(record.title)
+    if title is not None:
+        parts.append(title)
+    return " - ".join(parts)
+
+
+def _session_updated_at_label(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
+
+
+def _named_session_title(title: str | None) -> str | None:
+    if title is None:
+        return None
+    stripped = title.strip()
+    if not stripped or stripped.lower() == "untitled session":
+        return None
+    return stripped
 
 
 def _login_provider_label(provider: ProviderCatalogEntry) -> str:

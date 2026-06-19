@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -804,6 +805,8 @@ async def test_tui_app_resume_command_opens_session_picker() -> None:
         await pilot.press("enter")
 
         assert isinstance(app.screen, SessionPickerScreen)
+        picker_list = app.screen.query_one("#session-picker-list", ListView)
+        assert picker_list.index == 0
         assert [(item.role, item.text) for item in app.state.items] == [("user", "Earlier")]
 
 
@@ -990,6 +993,87 @@ async def test_tui_app_session_picker_resumes_selected_session() -> None:
         assert [(item.role, item.text) for item in app.state.items] == [
             ("user", "Restored prompt"),
         ]
+
+
+@pytest.mark.anyio
+async def test_tui_app_session_picker_shows_human_readable_session_metadata() -> None:
+    updated_at = datetime(2026, 6, 19, 14, 30).timestamp()
+    session = FakeSession()
+    session.session_manager = _FakeSessionManager(
+        [
+            CodingSessionRecord(
+                id="session-1",
+                path=Path("/tmp/session-1.jsonl"),
+                cwd=Path("/workspace/project"),
+                model="fake-model",
+                title="Untitled session",
+                created_at=1.0,
+                updated_at=updated_at,
+            ),
+            CodingSessionRecord(
+                id="session-2",
+                path=Path("/tmp/session-2.jsonl"),
+                cwd=Path("/workspace/project"),
+                model="other-model",
+                title="Named work",
+                created_at=1.0,
+                updated_at=updated_at,
+            ),
+        ]
+    )
+    app = TauTuiApp(session)
+
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+r")
+        assert isinstance(app.screen, SessionPickerScreen)
+        labels = [
+            item.query_one(Label).content
+            for item in app.screen.query_one("#session-picker-list", ListView).children
+        ]
+
+    assert labels == [
+        "2026-06-19 14:30 - fake-model",
+        "2026-06-19 14:30 - other-model - Named work",
+    ]
+    assert "session-1" not in "\n".join(str(label) for label in labels)
+    assert "Untitled session" not in "\n".join(str(label) for label in labels)
+
+
+@pytest.mark.anyio
+async def test_tui_app_session_picker_arrow_keys_select_session() -> None:
+    session = FakeSession(messages=[UserMessage(content="Earlier")])
+    session.session_manager = _FakeSessionManager(
+        [
+            CodingSessionRecord(
+                id="session-1",
+                path=Path("/tmp/session-1.jsonl"),
+                cwd=Path("/workspace/project"),
+                model="fake-model",
+                title=None,
+                created_at=1.0,
+                updated_at=3.0,
+            ),
+            CodingSessionRecord(
+                id="session-2",
+                path=Path("/tmp/session-2.jsonl"),
+                cwd=Path("/workspace/project"),
+                model="other-model",
+                title=None,
+                created_at=1.0,
+                updated_at=2.0,
+            ),
+        ]
+    )
+    app = TauTuiApp(session)
+
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+r")
+        assert isinstance(app.screen, SessionPickerScreen)
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert session.resumed_session_ids == ["session-2"]
 
 
 @pytest.mark.anyio
