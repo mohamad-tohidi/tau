@@ -119,6 +119,8 @@ class FakeSession:
             )
         if text == "/new":
             return CommandResult(handled=True, new_session_requested=True)
+        if text == "/compact":
+            return CommandResult(handled=True, compact_summary="")
         if text.startswith("/compact "):
             return CommandResult(handled=True, compact_summary=text.removeprefix("/compact "))
         if text == "/export":
@@ -739,12 +741,15 @@ async def test_tui_app_highlights_prompt_shell_mode() -> None:
         await pilot.pause()
 
         assert prompt.has_class("-shell-mode")
-        assert _activity_prompt_border_color(
-            app.tui_settings.resolved_theme,
-            frame=0,
-            running=False,
-            shell_mode=prompt.has_class("-shell-mode"),
-        ) == app.tui_settings.resolved_theme.accent
+        assert (
+            _activity_prompt_border_color(
+                app.tui_settings.resolved_theme,
+                frame=0,
+                running=False,
+                shell_mode=prompt.has_class("-shell-mode"),
+            )
+            == app.tui_settings.resolved_theme.accent
+        )
         assert prompt.get_line(0).spans[-1].start == 0
         assert prompt.get_line(0).spans[-1].end == 2
         assert str(prompt.get_line(0).spans[-1].style) == app.tui_settings.resolved_theme.accent
@@ -1157,6 +1162,19 @@ async def test_tui_app_compact_command_runs_session_compaction() -> None:
 
         assert session.compact_summaries == ["Summary of earlier work."]
         assert [(item.role, item.text) for item in app.state.items] == [("user", "Earlier")]
+
+
+@pytest.mark.anyio
+async def test_tui_app_compact_command_accepts_no_instructions() -> None:
+    session = FakeSession(messages=[UserMessage(content="Earlier")])
+    app = TauTuiApp(session)
+
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt")
+        prompt.value = "/compact"
+        await pilot.press("enter")
+
+        assert session.compact_summaries == [""]
 
 
 @pytest.mark.anyio

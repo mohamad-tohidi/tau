@@ -11,10 +11,15 @@ from tau_coding.context import (
     discover_project_context_with_diagnostics,
 )
 from tau_coding.context_window import (
+    DEFAULT_COMPACTION_KEEP_RECENT_TOKENS,
+    DEFAULT_COMPACTION_RESERVE_TOKENS,
+    SUMMARIZATION_SYSTEM_PROMPT,
+    build_compaction_summary_prompt,
     estimate_context_tokens,
     estimate_message_tokens,
     estimate_text_tokens,
     estimate_tool_tokens,
+    serialize_messages_for_compaction,
     summarize_messages_for_compaction,
 )
 from tau_coding.credentials import (
@@ -196,10 +201,15 @@ __all__ = [
     "default_openai_provider_config",
     "discover_project_context",
     "discover_project_context_with_diagnostics",
+    "DEFAULT_COMPACTION_KEEP_RECENT_TOKENS",
+    "DEFAULT_COMPACTION_RESERVE_TOKENS",
     "estimate_context_tokens",
     "estimate_message_tokens",
     "estimate_text_tokens",
     "estimate_tool_tokens",
+    "build_compaction_summary_prompt",
+    "serialize_messages_for_compaction",
+    "SUMMARIZATION_SYSTEM_PROMPT",
     "THINKING_LEVELS",
     "summarize_messages_for_compaction",
     "expand_skill_command",

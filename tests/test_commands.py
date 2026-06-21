@@ -2,7 +2,6 @@ from pathlib import Path
 
 from tau_coding.commands import CommandRegistry, SlashCommand, create_default_command_registry
 from tau_coding.paths import TauPaths
-from tau_coding.resources import ResourceDiagnostic
 from tau_coding.session import ModelChoice
 from tau_coding.session_manager import SessionManager
 from tau_coding.skills import Skill
@@ -97,14 +96,14 @@ def test_quit_and_new_return_control_flags(tmp_path: Path) -> None:
     assert registry.execute(session, "/clear").message == "Unknown command: /clear"
 
 
-def test_compact_command_requires_and_returns_summary(tmp_path: Path) -> None:
+def test_compact_command_accepts_optional_instructions(tmp_path: Path) -> None:
     registry = create_default_command_registry()
     session = FakeSession(tmp_path)
 
-    missing = registry.execute(session, "/compact")
+    default = registry.execute(session, "/compact")
     requested = registry.execute(session, "/compact Summary of prior work.")
 
-    assert missing.message == "Usage: /compact <summary>"
+    assert default.compact_summary == ""
     assert requested.compact_summary == "Summary of prior work."
 
 
@@ -154,7 +153,10 @@ def test_session_command_includes_session_details(tmp_path: Path) -> None:
     assert "Auto compact threshold: 200" in result.message
     assert "Resource diagnostics: 0" in result.message
     assert "Session: session-1" in result.message
-    assert create_default_command_registry().execute(FakeSession(tmp_path), "/status").message == "Unknown command: /status"
+    assert (
+        create_default_command_registry().execute(FakeSession(tmp_path), "/status").message
+        == "Unknown command: /status"
+    )
 
 
 def test_hotkeys_command_lists_common_tui_shortcuts(tmp_path: Path) -> None:
@@ -343,7 +345,9 @@ def test_registry_rejects_duplicate_commands_and_aliases() -> None:
         name="test",
         usage="/test",
         description="Test",
-        handler=lambda context: create_default_command_registry().execute(context.session, "/session"),
+        handler=lambda context: create_default_command_registry().execute(
+            context.session, "/session"
+        ),
     )
     registry.register(command)
 

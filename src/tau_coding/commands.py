@@ -202,8 +202,8 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(
         SlashCommand(
             name="compact",
-            usage="/compact <summary>",
-            description="Replace active context with a manual summary.",
+            usage="/compact [instructions]",
+            description="Summarize and compact active context.",
             handler=_compact_command,
         )
     )
@@ -321,11 +321,6 @@ def _new_command(context: CommandContext) -> CommandResult:
 
 
 def _compact_command(context: CommandContext) -> CommandResult:
-    if not context.args:
-        return CommandResult(
-            handled=True,
-            message="Usage: /compact <summary>",
-        )
     return CommandResult(
         handled=True,
         compact_summary=context.args.strip(),
