@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import TimeoutExpired, run
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from pygments.lexers import get_lexer_by_name  # type: ignore[import-untyped]
 from pygments.util import ClassNotFound  # type: ignore[import-untyped]
@@ -114,12 +114,50 @@ class CompactSessionInfo(Static):
         self.update(render_compact_session_info(session, theme=theme))
 
 
+_SELECTABLE_MARKDOWN_BLOCKS: dict[type[Any], type[Any]] = {}
+
+
 class ThemedMarkdownWidget(TextualMarkdown):
     """Textual Markdown widget reserved for Tau transcript streaming."""
 
     def __init__(self, markdown: str | None = None, *, theme: TuiTheme) -> None:
         del theme
         super().__init__(markdown)
+
+    def get_block_class(self, block_name: str) -> type[Any]:
+        """Return Markdown blocks that expose per-cell selection offsets."""
+        return _selectable_markdown_block_class(super().get_block_class(block_name))
+
+
+def _selectable_markdown_block_class(block_class: type[Any]) -> type[Any]:
+    cached = _SELECTABLE_MARKDOWN_BLOCKS.get(block_class)
+    if cached is not None:
+        return cached
+
+    class SelectableMarkdownBlock(block_class):  # type: ignore[misc]
+        """Markdown block with live Textual selection painting."""
+
+        def render_line(self, y: int) -> Strip:
+            strip = cast(Strip, super().render_line(y)).apply_offsets(0, y)
+            selection = self.text_selection
+            if selection is None:
+                return strip
+            span = selection.get_span(y)
+            if span is None:
+                return strip
+            start, end = span
+            if end == -1:
+                end = strip.cell_length
+            return _stylize_strip_range(
+                strip,
+                start=start,
+                end=end,
+                style=self.screen.get_visual_style("screen--selection").rich_style,
+            )
+
+    SelectableMarkdownBlock.__name__ = f"Selectable{block_class.__name__}"
+    _SELECTABLE_MARKDOWN_BLOCKS[block_class] = SelectableMarkdownBlock
+    return SelectableMarkdownBlock
 
 
 class TranscriptMessageWidget(Static):
