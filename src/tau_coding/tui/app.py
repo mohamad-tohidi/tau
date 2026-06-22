@@ -985,9 +985,7 @@ class ModelPickerScreen(ModalScreen[ModelChoice | None]):
         """Compose the model picker."""
         with Vertical(id="model-picker"):
             title = (
-                f"Model: {self.provider_name}"
-                if self.picker_kind == "model"
-                else "Scoped models"
+                f"Model: {self.provider_name}" if self.picker_kind == "model" else "Scoped models"
             )
             yield Static(title, id="model-picker-title")
             yield Static("", id="model-picker-tabs")
@@ -1149,7 +1147,10 @@ class ModelPickerScreen(ModalScreen[ModelChoice | None]):
             help_text = (
                 "all models: no matching models - Tab switches to scoped models"
                 if not self.visible_choices
-                else f"All models - Enter selects active model - Tab switches tabs - {scope_count} scoped"
+                else (
+                    "All models - Enter selects active model - Tab switches tabs - "
+                    f"{scope_count} scoped"
+                )
             )
         else:
             tabs.update("Tabs: ○ All models  ● Scoped models")
@@ -1800,7 +1801,10 @@ class TauTuiApp(App[None]):
             if command.theme is not None:
                 self._set_tui_theme(cast(TuiThemeName, command.theme))
             if command.message:
-                self._show_command_message(text, command.message)
+                if _command_message_uses_transcript(text):
+                    self._append_command_message(text, command.message)
+                else:
+                    self._show_command_message(text, command.message)
             self._refresh()
             if command.exit_requested:
                 self.exit()
@@ -1925,7 +1929,7 @@ class TauTuiApp(App[None]):
             | TreePickerScreen
             | LoginMethodPickerScreen
             | LoginProviderPickerScreen
-            | ThemePickerScreen
+            | ThemePickerScreen,
         ):
             self.screen.action_select_cursor()
             return
@@ -2133,6 +2137,10 @@ class TauTuiApp(App[None]):
             return None
         return item.apply(value)
 
+    def _append_command_message(self, command_text: str, message: str) -> None:
+        """Append non-persistent command output to the visible transcript."""
+        self.state.add_item("status", f"{_command_output_title(command_text)}\n{message}")
+
     def _show_command_message(self, command_text: str, message: str) -> None:
         self.push_screen(
             CommandOutputScreen(
@@ -2198,7 +2206,7 @@ class TauTuiApp(App[None]):
             settings = load_provider_settings()
             provider = provider_config_from_catalog_entry(entry.name)
             save_provider_settings(upsert_provider(settings, provider, set_default=True))
-            self.session.reload()
+            self.session.reload_provider_settings()
             self.session.set_provider(entry.name)
         except Exception as exc:  # noqa: BLE001 - surface login failures in the TUI
             self._notify(f"Could not save login: {exc}", severity="error")
@@ -2218,7 +2226,7 @@ class TauTuiApp(App[None]):
             settings = load_provider_settings()
             provider = provider_config_from_catalog_entry(entry.name)
             save_provider_settings(upsert_provider(settings, provider, set_default=True))
-            self.session.reload()
+            self.session.reload_provider_settings()
             self.session.set_provider(entry.name)
         except Exception as exc:  # noqa: BLE001 - surface login failures in the TUI
             self._notify(f"Could not save login: {exc}", severity="error")
@@ -2717,6 +2725,12 @@ def _filter_model_choices(choices: Sequence[ModelChoice], query: str) -> tuple[M
         for choice in choices
         if normalized in choice.provider_name.lower() or normalized in choice.model.lower()
     )
+
+
+def _command_message_uses_transcript(command_text: str) -> bool:
+    """Return whether slash-command output should appear inline in the transcript."""
+    command_name = command_text.split(maxsplit=1)[0].casefold()
+    return command_name == "/reload"
 
 
 def _command_output_title(command_text: str) -> str:

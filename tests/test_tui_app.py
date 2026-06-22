@@ -104,6 +104,7 @@ class FakeSession:
         self.new_session_count = 0
         self.prompt_texts: list[str] = []
         self.reload_count = 0
+        self.provider_reload_count = 0
         self.queued_steering_messages: tuple[str, ...] = ()
         self.queued_follow_up_messages: tuple[str, ...] = ()
         self.streaming_behaviors: list[str | None] = []
@@ -116,6 +117,12 @@ class FakeSession:
             return CommandResult(
                 handled=True,
                 message="Session info",
+            )
+        if text == "/reload":
+            self.reload_count += 1
+            return CommandResult(
+                handled=True,
+                message="Reloaded local coding resources and project context.",
             )
         if text == "/new":
             return CommandResult(handled=True, new_session_requested=True)
@@ -187,6 +194,9 @@ class FakeSession:
 
     def reload(self) -> None:
         self.reload_count += 1
+
+    def reload_provider_settings(self) -> None:
+        self.provider_reload_count += 1
 
     async def set_thinking_level(self, level: str) -> str:
         self.thinking_level = level
@@ -742,12 +752,15 @@ async def test_tui_app_highlights_prompt_shell_mode() -> None:
         await pilot.pause()
 
         assert prompt.has_class("-shell-mode")
-        assert _activity_prompt_border_color(
-            app.tui_settings.resolved_theme,
-            frame=0,
-            running=False,
-            shell_mode=prompt.has_class("-shell-mode"),
-        ) == app.tui_settings.resolved_theme.accent
+        assert (
+            _activity_prompt_border_color(
+                app.tui_settings.resolved_theme,
+                frame=0,
+                running=False,
+                shell_mode=prompt.has_class("-shell-mode"),
+            )
+            == app.tui_settings.resolved_theme.accent
+        )
         assert prompt.get_line(0).spans[-1].start == 0
         assert prompt.get_line(0).spans[-1].end == 2
         assert str(prompt.get_line(0).spans[-1].style) == app.tui_settings.resolved_theme.accent
@@ -1706,6 +1719,27 @@ async def test_tui_app_help_uses_modal_instead_of_transcript() -> None:
 
 
 @pytest.mark.anyio
+async def test_tui_app_reload_appends_command_output_to_transcript() -> None:
+    session = FakeSession()
+    app = TauTuiApp(session)
+
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt")
+        prompt.value = "/reload"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, CommandOutputScreen)
+        assert session.reload_count == 1
+        assert app.state.items == [
+            ChatItem(
+                role="status",
+                text="/reload\nReloaded local coding resources and project context.",
+            )
+        ]
+
+
+@pytest.mark.anyio
 async def test_tui_app_command_modal_arrow_keys_scroll_output() -> None:
     app = TauTuiApp(FakeSession())
     long_message = "\n".join(f"line {index}" for index in range(80))
@@ -1916,7 +1950,8 @@ async def test_tui_login_saves_provider_key(
         await pilot.press("enter")
         await pilot.pause()
 
-    assert session.reload_count == 1
+    assert session.reload_count == 0
+    assert session.provider_reload_count == 1
     assert session.provider_name == "openai"
     assert session.prompt_texts == []
     assert all(item.text != "stored-openai-key" for item in app.state.items)
@@ -1955,7 +1990,8 @@ async def test_tui_login_openai_codex_saves_oauth_credentials(
         )
         await pilot.pause()
 
-    assert session.reload_count == 1
+    assert session.reload_count == 0
+    assert session.provider_reload_count == 1
     assert session.provider_name == "openai-codex"
     assert all("access-token" not in item.text for item in app.state.items)
     credentials = (tmp_path / ".tau" / "credentials.json").read_text(encoding="utf-8")
