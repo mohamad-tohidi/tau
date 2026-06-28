@@ -53,6 +53,13 @@ You can run a shell command yourself without asking the model:
 While typing a path after `!`/`!!`, press **Tab** to complete filenames from the
 working directory.
 
+:::note[Aliases]
+These commands (and the agent's `bash` tool) run in a non-interactive shell, so
+your `~/.zshrc`/`~/.bashrc` aliases aren't loaded automatically. To use your own
+aliases, set a `shellCommandPrefix` — see
+[Shell settings](../reference/configuration.md#shell-settings).
+:::
+
 ## Referencing files with `@`
 
 Type `@` in the prompt to open file suggestions from the project tree, and insert

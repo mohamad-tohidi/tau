@@ -13,6 +13,7 @@ those locations and file formats.
 ~/.tau/
 ├── providers.json      # configured providers
 ├── credentials.json    # saved API keys / OAuth tokens (private permissions)
+├── settings.json       # general settings (e.g. shell command prefix)
 ├── tui.json            # TUI theme + keybindings
 ├── sessions/           # saved sessions, per project
 ├── skills/             # user-level skills
@@ -66,6 +67,38 @@ Writes after `/login`, `/model`, or scoped-model changes reload the file first,
 apply only the requested change, write atomically, and keep a `.bak` backup.
 
 See the [Providers & models guide](../guides/providers-and-models.md) for usage.
+
+## Shell settings
+
+Tau runs shell commands in a **non-interactive** shell — both terminal-input
+commands (`! gst`, `!! ll`) and the agent's `bash` tool. Non-interactive shells
+don't load your aliases from `~/.zshrc` or `~/.bashrc`, and Tau deliberately
+never reads those files (they can hold tokens and side effects).
+
+To make your own aliases available, opt in with a `shellCommandPrefix` in
+`~/.tau/settings.json` that loads a small Tau-specific alias file:
+
+```bash
+# ~/.tau/shell-aliases.bash
+alias gst='git status'
+alias ga='git add'
+alias gc='git commit'
+```
+
+```json
+{
+  "shellCommandPrefix": "shopt -s expand_aliases\nsource ~/.tau/shell-aliases.bash"
+}
+```
+
+Then start a new session and try `! gst`. Notes:
+
+- Commands run through bash-style non-interactive execution, so keep aliases
+  POSIX/bash-compatible (zsh-only syntax, functions, or interactive startup
+  logic may not work).
+- Changing `settings.json` affects **new** sessions; an already-running session
+  keeps the prefix it started with.
+- The snake_case key `shell_command_prefix` is also accepted.
 
 ## TUI settings
 
